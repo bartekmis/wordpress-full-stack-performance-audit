@@ -1,0 +1,587 @@
+<!--
+  AI INSTRUCTION: Do NOT read this full file during diagnostic phases.
+  Instead, read report-placeholders.md for the placeholder reference.
+  Read this template ONLY at the final report assembly step (phase 10.3 step 4).
+-->
+<!DOCTYPE html>
+<html lang="{{LANG}}">
+<head>
+<meta charset="UTF-8">
+<title>WOW Audit - {{DOMAIN}} - {{DATE}}</title>
+<style>
+  :root {
+    --c-bg: #ffffff;
+    --c-text: #1a1a1a;
+    --c-muted: #666;
+    --c-border: #e5e5e5;
+    --c-accent: #0066cc;
+    --c-good: #2e7d32;
+    --c-warn: #ed6c02;
+    --c-bad: #c62828;
+    --c-card: #f8f9fa;
+    --c-code-bg: #1e1e1e;
+    --c-code-fg: #d4d4d4;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --font-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--c-bg);
+    color: var(--c-text);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  body { max-width: 960px; margin: 0 auto; padding: 40px 32px 80px; }
+  h1, h2, h3, h4 { font-weight: 700; line-height: 1.25; margin-top: 0; }
+  h1 { font-size: 32px; margin-bottom: 8px; }
+  h2 { font-size: 24px; margin-top: 48px; padding-bottom: 8px; border-bottom: 2px solid var(--c-border); }
+  h3 { font-size: 18px; margin-top: 32px; color: var(--c-accent); }
+  h4 { font-size: 15px; margin-top: 20px; }
+  p, ul, ol { margin: 8px 0 14px; }
+  ul, ol { padding-left: 24px; }
+  li { margin: 4px 0; }
+  code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--c-card);
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--c-border);
+  }
+  pre {
+    background: var(--c-code-bg);
+    color: var(--c-code-fg);
+    padding: 14px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  pre code { background: none; border: none; padding: 0; color: inherit; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: 13px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--c-border);
+    vertical-align: top;
+  }
+  th { background: var(--c-card); font-weight: 600; }
+  .meta { color: var(--c-muted); font-size: 13px; }
+  .cover {
+    border: 1px solid var(--c-border);
+    border-radius: 8px;
+    padding: 28px 32px;
+    background: var(--c-card);
+    margin-bottom: 24px;
+  }
+  .cover h1 { margin-bottom: 4px; }
+  .cover .url { font-family: var(--font-mono); color: var(--c-accent); font-size: 16px; }
+  .cover dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 16px 0 0; }
+  .cover dt { font-weight: 600; color: var(--c-muted); }
+  .cover dd { margin: 0; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .badge-good { background: #e8f5e9; color: var(--c-good); }
+  .badge-warn { background: #fff4e5; color: var(--c-warn); }
+  .badge-bad { background: #ffebee; color: var(--c-bad); }
+  .badge-info { background: #e3f2fd; color: var(--c-accent); }
+  .metric {
+    display: inline-block;
+    padding: 8px 14px;
+    margin: 4px 6px 4px 0;
+    border: 1px solid var(--c-border);
+    border-radius: 6px;
+    background: var(--c-card);
+    min-width: 110px;
+  }
+  .metric .label { font-size: 11px; color: var(--c-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .metric .value { font-size: 20px; font-weight: 700; }
+  .metric.good .value { color: var(--c-good); }
+  .metric.warn .value { color: var(--c-warn); }
+  .metric.bad .value { color: var(--c-bad); }
+  .finding {
+    border-left: 4px solid var(--c-border);
+    padding: 12px 16px;
+    margin: 12px 0;
+    background: var(--c-card);
+    border-radius: 0 6px 6px 0;
+  }
+  .finding.bad { border-left-color: var(--c-bad); }
+  .finding.warn { border-left-color: var(--c-warn); }
+  .finding.good { border-left-color: var(--c-good); }
+  .finding h4 { margin-top: 0; }
+  .finding .evidence { font-family: var(--font-mono); font-size: 11px; color: var(--c-muted); margin-top: 4px; }
+  .action {
+    border: 1px solid var(--c-border);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 10px 0;
+  }
+  .action h4 { margin: 0 0 6px; }
+  .action .impact { font-size: 12px; color: var(--c-good); font-weight: 600; }
+  .quick-wins { border-left: 4px solid var(--c-good); padding-left: 16px; }
+  .phase-2 { border-left: 4px solid var(--c-warn); padding-left: 16px; }
+  .phase-3 { border-left: 4px solid var(--c-bad); padding-left: 16px; }
+  .toc {
+    background: var(--c-card);
+    padding: 16px 24px;
+    border-radius: 6px;
+    margin-bottom: 32px;
+  }
+  .toc ol { margin: 0; padding-left: 20px; }
+  .toc a { color: var(--c-text); text-decoration: none; }
+  .toc a:hover { color: var(--c-accent); text-decoration: underline; }
+  .pagetype-section {
+    border: 1px solid var(--c-border);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin: 16px 0;
+  }
+  .pagetype-section h3 { margin-top: 0; }
+  .footer {
+    margin-top: 64px;
+    padding-top: 16px;
+    border-top: 1px solid var(--c-border);
+    font-size: 12px;
+    color: var(--c-muted);
+    text-align: center;
+  }
+  @media print {
+    body { padding: 20px 16px; max-width: none; font-size: 12px; }
+    h1 { font-size: 26px; }
+    h2 { font-size: 20px; margin-top: 30px; page-break-after: avoid; }
+    h3 { font-size: 16px; page-break-after: avoid; }
+    h4 { page-break-after: avoid; }
+    pre, table, .finding, .action, .pagetype-section { page-break-inside: avoid; }
+    .pagetype-section { break-inside: avoid; }
+    .toc { page-break-after: always; }
+    a { color: inherit; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ========================================================================
+  COVER
+  ======================================================================== -->
+<section class="cover">
+  <h1>WOW Performance Audit</h1>
+  <div class="url">{{SITE_URL}}</div>
+  <dl>
+    <dt>Data audytu:</dt><dd>{{DATE}}</dd>
+    <dt>Środowisko:</dt><dd>{{ENVIRONMENT}}</dd>
+    <dt>Hosting:</dt><dd>{{HOSTING_TYPE}}</dd>
+    <dt>Page types:</dt><dd>{{PAGE_TYPES_COUNT}} ({{PAGE_TYPES_LIST}})</dd>
+    <dt>RUM:</dt><dd>{{RUM_STATUS}}</dd>
+    <dt>WPT:</dt><dd>{{WPT_STATUS}}</dd>
+    <dt>APM:</dt><dd>{{APM_STATUS}}</dd>
+    <dt>Audytor:</dt><dd>WOW Audit Playbook (auto)</dd>
+  </dl>
+</section>
+
+<!-- ========================================================================
+  TOC
+  ======================================================================== -->
+<nav class="toc">
+  <strong>Spis treści</strong>
+  <ol>
+    <li><a href="#exec">Executive summary</a></li>
+    <li><a href="#method">Metodologia</a></li>
+    <li><a href="#network">Warstwa sieciowa (DNS, TLS, protokół)</a></li>
+    <li><a href="#server">Warstwa serwerowa (PHP, web server)</a></li>
+    <li><a href="#wp">Warstwa WordPress (wp-config, baza)</a></li>
+    <li><a href="#code-review">Code Review (custom WordPress code)</a></li>
+    <li><a href="#apm">APM findings</a></li>
+    <li><a href="#cache">Warstwa cache (page, object, CDN, kompresja)</a></li>
+    <li><a href="#frontend">Frontend per page type</a></li>
+    <li><a href="#rum">RUM snapshot</a></li>
+    <li><a href="#rum-replay">RUM Root Cause Replay (INP + LCP + CLS lab repro)</a></li>
+    <li><a href="#correlations">Korelacje krzyżowe</a></li>
+    <li><a href="#plan">Plan napraw</a></li>
+    <li><a href="#appendix">Załączniki (raw output)</a></li>
+  </ol>
+</nav>
+
+<!-- ========================================================================
+  1. EXECUTIVE SUMMARY
+  ======================================================================== -->
+<h2 id="exec">1. Executive summary</h2>
+<p class="meta">Najważniejsze wnioski z audytu w 3 punktach.</p>
+
+<div class="finding bad">
+  <h4>1. {{TOP_FINDING_1_TITLE}}</h4>
+  <p>{{TOP_FINDING_1_DESC}}</p>
+  <p class="evidence">{{TOP_FINDING_1_EVIDENCE}}</p>
+</div>
+
+<div class="finding warn">
+  <h4>2. {{TOP_FINDING_2_TITLE}}</h4>
+  <p>{{TOP_FINDING_2_DESC}}</p>
+  <p class="evidence">{{TOP_FINDING_2_EVIDENCE}}</p>
+</div>
+
+<div class="finding warn">
+  <h4>3. {{TOP_FINDING_3_TITLE}}</h4>
+  <p>{{TOP_FINDING_3_DESC}}</p>
+  <p class="evidence">{{TOP_FINDING_3_EVIDENCE}}</p>
+</div>
+
+<h3>Kluczowe metryki (mediana)</h3>
+<div>
+  <div class="metric {{TTFB_CLASS}}"><div class="label">TTFB</div><div class="value">{{TTFB_VALUE}}</div></div>
+  <div class="metric {{LCP_CLASS}}"><div class="label">LCP mobile</div><div class="value">{{LCP_VALUE}}</div></div>
+  <div class="metric {{INP_CLASS}}"><div class="label">INP</div><div class="value">{{INP_VALUE}}</div></div>
+  <div class="metric {{CLS_CLASS}}"><div class="label">CLS</div><div class="value">{{CLS_VALUE}}</div></div>
+</div>
+
+<!-- ========================================================================
+  2. METHODOLOGY
+  ======================================================================== -->
+<h2 id="method">2. Metodologia</h2>
+<p>{{METHODOLOGY_TEXT}}</p>
+<ul>
+  <li><strong>Lab testy:</strong> Chrome DevTools MCP, profile mobile (Moto G Power, Fast 4G, 4x CPU throttle) i desktop (1920x1080, no throttle)</li>
+  <li><strong>Network probing:</strong> curl, dig, whois, openssl - {{PROBE_RUNS}} prób per metryka, raportowana mediana</li>
+  <li><strong>RUM:</strong> {{RUM_METHOD}}</li>
+  <li><strong>WebPageTest:</strong> {{WPT_METHOD}}</li>
+  <li><strong>APM:</strong> {{APM_METHOD}}</li>
+  <li><strong>Snippety frontendowe:</strong> nucliweb/webperf-snippets odpalone przez evaluate_script</li>
+</ul>
+
+<!-- ========================================================================
+  3. NETWORK LAYER
+  ======================================================================== -->
+<h2 id="network">3. Warstwa sieciowa</h2>
+
+<h3>3.1 DNS</h3>
+<table>
+  <tr><th>Pomiar</th><th>Wartość</th><th>Status</th></tr>
+  <tr><td>Provider DNS</td><td>{{DNS_PROVIDER}}</td><td>{{DNS_PROVIDER_STATUS}}</td></tr>
+  <tr><td>Anycast</td><td>{{DNS_ANYCAST}}</td><td>{{DNS_ANYCAST_STATUS}}</td></tr>
+  <tr><td>Czas DNS lookup (mediana)</td><td>{{DNS_LOOKUP_MS}} ms</td><td>{{DNS_LOOKUP_STATUS}}</td></tr>
+  <tr><td>Liczba NS records</td><td>{{DNS_NS_COUNT}}</td><td>-</td></tr>
+  <tr><td>TTL rekordu A</td><td>{{DNS_TTL}} s</td><td>-</td></tr>
+  <tr><td>Preconnect/dns-prefetch w &lt;head&gt;</td><td>{{DNS_PRECONNECT_COUNT}}</td><td>{{DNS_PRECONNECT_STATUS}}</td></tr>
+</table>
+{{DNS_FINDINGS}}
+
+<h3>3.2 TLS i protokół HTTP</h3>
+<table>
+  <tr><th>Pomiar</th><th>Wartość</th><th>Status</th></tr>
+  <tr><td>Wersja TLS</td><td>{{TLS_VERSION}}</td><td>{{TLS_VERSION_STATUS}}</td></tr>
+  <tr><td>HTTP protokół</td><td>{{HTTP_PROTOCOL}}</td><td>{{HTTP_PROTOCOL_STATUS}}</td></tr>
+  <tr><td>HSTS header</td><td>{{HSTS_PRESENT}}</td><td>{{HSTS_STATUS}}</td></tr>
+  <tr><td>HTTP -&gt; HTTPS redirect</td><td>{{HTTPS_REDIRECT}}</td><td>{{HTTPS_REDIRECT_STATUS}}</td></tr>
+  <tr><td>TLS handshake (1. wizyta)</td><td>{{TLS_HANDSHAKE_FIRST}} ms</td><td>-</td></tr>
+  <tr><td>TLS handshake (2. wizyta, session resumption)</td><td>{{TLS_HANDSHAKE_REPEAT}} ms</td><td>{{TLS_RESUMPTION_STATUS}}</td></tr>
+</table>
+{{TLS_FINDINGS}}
+
+<!-- ========================================================================
+  4. SERVER LAYER
+  ======================================================================== -->
+<h2 id="server">4. Warstwa serwerowa</h2>
+<table>
+  <tr><th>Pomiar</th><th>Wartość</th><th>Status</th></tr>
+  <tr><td>Web server</td><td>{{WEB_SERVER}}</td><td>-</td></tr>
+  <tr><td>PHP version</td><td>{{PHP_VERSION}}</td><td>{{PHP_VERSION_STATUS}}</td></tr>
+  <tr><td>OPcache</td><td>{{OPCACHE_STATUS}}</td><td>{{OPCACHE_BADGE}}</td></tr>
+  <tr><td>Object cache</td><td>{{OBJECT_CACHE_TYPE}}</td><td>{{OBJECT_CACHE_STATUS}}</td></tr>
+  <tr><td>TTFB curl (cached, mediana z 5)</td><td>{{TTFB_CACHED}} ms</td><td>{{TTFB_CACHED_STATUS}}</td></tr>
+  <tr><td>TTFB curl (uncached, mediana z 5)</td><td>{{TTFB_UNCACHED}} ms</td><td>{{TTFB_UNCACHED_STATUS}}</td></tr>
+  <tr><td>Apache Bench (jeśli odpalony)</td><td>{{AB_RESULTS}}</td><td>-</td></tr>
+</table>
+{{SERVER_FINDINGS}}
+
+<!-- ========================================================================
+  5. WORDPRESS LAYER
+  ======================================================================== -->
+<h2 id="wp">5. Warstwa WordPress (wp-config i baza)</h2>
+<table>
+  <tr><th>Pomiar</th><th>Wartość</th><th>Status</th></tr>
+  <tr><td>WP_MEMORY_LIMIT</td><td>{{WP_MEMORY_LIMIT}}</td><td>{{WP_MEMORY_LIMIT_STATUS}}</td></tr>
+  <tr><td>DISABLE_WP_CRON</td><td>{{DISABLE_WP_CRON}}</td><td>{{DISABLE_WP_CRON_STATUS}}</td></tr>
+  <tr><td>WP_POST_REVISIONS</td><td>{{WP_POST_REVISIONS}}</td><td>{{WP_POST_REVISIONS_STATUS}}</td></tr>
+  <tr><td>WP_DEBUG (produkcja)</td><td>{{WP_DEBUG}}</td><td>{{WP_DEBUG_STATUS}}</td></tr>
+  <tr><td>SAVE_QUERIES</td><td>{{SAVE_QUERIES}}</td><td>{{SAVE_QUERIES_STATUS}}</td></tr>
+  <tr><td>Autoloaded options size</td><td>{{AUTOLOAD_SIZE}}</td><td>{{AUTOLOAD_STATUS}}</td></tr>
+  <tr><td>Liczba revisions w bazie</td><td>{{REVISIONS_COUNT}}</td><td>{{REVISIONS_STATUS}}</td></tr>
+  <tr><td>Object Cache hit ratio (Query Monitor)</td><td>{{QM_OBJECT_CACHE_RATIO}}</td><td>{{QM_OBJECT_CACHE_STATUS}}</td></tr>
+</table>
+{{WP_FINDINGS}}
+
+<!-- ========================================================================
+  6a. CODE REVIEW
+  ======================================================================== -->
+<h2 id="code-review">6a. Code Review (custom WordPress code)</h2>
+<p class="meta">Skanowanie motywu, mu-pluginów i custom pluginów pod kątem 10 anti-patternów wg <a href="https://github.com/bartekmis/wordpress-performance-best-practises">wordpress-performance-best-practices</a> (Bartłomiej Miś).</p>
+
+<div>
+  <span class="meta">Skanowane: <strong>{{CR_FILES_COUNT}}</strong> plików w {{CR_DIRS_COUNT}} katalogach</span>
+  &nbsp;|&nbsp;
+  <span class="badge badge-bad">{{CR_BAD_COUNT}} bad</span>
+  <span class="badge badge-warn">{{CR_WARN_COUNT}} warn</span>
+</div>
+
+<h3>Znaleziska</h3>
+<table>
+  <tr>
+    <th>Plik</th>
+    <th>Linia</th>
+    <th>Rule</th>
+    <th>Severity</th>
+    <th>Krótki opis</th>
+  </tr>
+  {{CR_FINDINGS_ROWS}}
+</table>
+
+<h3>Wzorce naprawcze (canonical fix examples)</h3>
+<p class="meta">Per unikalna reguła - kanoniczny wzorzec poprawnej implementacji z reguły skilla.</p>
+
+{{CR_RULE_EXAMPLES}}
+<!--
+  Każdy unikalny rule = blok:
+  <details>
+    <summary><strong>{{rule_name}}</strong> ({{n}} znalezisk w kodzie) - {{rule_one_liner}}</summary>
+    <pre><code>{{correct_code_example}}</code></pre>
+    <p class="meta">Pełny opis: <a href="https://github.com/bartekmis/wordpress-performance-best-practises/blob/main/rules/{{rule_name}}.md">{{rule_name}}.md</a></p>
+  </details>
+-->
+
+<h3>Pominięte (giganty wp.org)</h3>
+<p class="meta">Te pluginy NIE były skanowane - zbyt duże, vendor code. Diagnozujemy je przez APM/Query Monitor (sekcja 6 niżej):</p>
+<p>{{CR_SKIPPED_PLUGINS}}</p>
+
+<!-- ========================================================================
+  6. APM
+  ======================================================================== -->
+<h2 id="apm">6. APM findings</h2>
+{{APM_SECTION}}
+
+<!-- ========================================================================
+  7. CACHE LAYER
+  ======================================================================== -->
+<h2 id="cache">7. Warstwa cache</h2>
+
+<h3>7.1 Full Page Cache</h3>
+<table>
+  <tr><th>Pomiar</th><th>Wartość</th></tr>
+  <tr><td>Wykryta warstwa cache</td><td>{{PAGE_CACHE_LAYER}}</td></tr>
+  <tr><td>Header cache</td><td><code>{{PAGE_CACHE_HEADER}}</code></td></tr>
+  <tr><td>MISS -&gt; HIT progresja (3 requesty)</td><td>{{CACHE_PROGRESSION}}</td></tr>
+  <tr><td>Bypass z parametrem URL</td><td>{{CACHE_BYPASS_URL}}</td></tr>
+  <tr><td>Bypass z cookie zalogowania</td><td>{{CACHE_BYPASS_COOKIE}}</td></tr>
+</table>
+
+<h3>7.2 Cache statyków i kompresja</h3>
+<table>
+  <tr><th>Pomiar</th><th>Wartość</th><th>Status</th></tr>
+  <tr><td>Cache-Control na CSS/JS/img</td><td>{{STATIC_CACHE_CONTROL}}</td><td>{{STATIC_CACHE_STATUS}}</td></tr>
+  <tr><td>Kompresja (gzip / br / zstd)</td><td>{{COMPRESSION_TYPE}}</td><td>{{COMPRESSION_STATUS}}</td></tr>
+  <tr><td>CDN hit ratio (Cloudflare dashboard)</td><td>{{CDN_HIT_RATIO}}</td><td>{{CDN_HIT_RATIO_STATUS}}</td></tr>
+</table>
+{{CACHE_FINDINGS}}
+
+<!-- ========================================================================
+  8. FRONTEND PER PAGE TYPE
+  ======================================================================== -->
+<h2 id="frontend">8. Frontend per page type</h2>
+<p class="meta">Każdy typ podstrony testowany osobno na profilu mobile (Moto G Power, 4G, 4x CPU) i desktop (1920x1080, brak throttlingu).</p>
+
+<h3>8.1 Tabela porównawcza (mediana mobile)</h3>
+<table>
+  <tr>
+    <th>Page type</th>
+    <th>TTFB</th>
+    <th>FCP</th>
+    <th>LCP</th>
+    <th>CLS</th>
+    <th>Long tasks</th>
+    <th>Requests</th>
+    <th>Bytes</th>
+  </tr>
+  {{PAGETYPE_COMPARISON_ROWS}}
+</table>
+
+{{PAGETYPE_SECTIONS}}
+
+<!--
+  Każda sekcja per page type:
+  <div class="pagetype-section">
+    <h3>{{PT_NAME}}</h3>
+    <p class="meta">URL: <code>{{PT_URL}}</code></p>
+    <h4>Mobile</h4>
+    <div class="metric">...</div>
+    <h4>Desktop</h4>
+    <div class="metric">...</div>
+    <h4>LCP element</h4>
+    <p>{{PT_LCP_ELEMENT}}</p>
+    <h4>Render-blocking resources</h4>
+    <ul>{{PT_RENDER_BLOCKING}}</ul>
+    <h4>Top 5 najcięższych requestów</h4>
+    <ol>{{PT_TOP_REQUESTS}}</ol>
+    <h4>Third-party</h4>
+    <ul>{{PT_THIRD_PARTY}}</ul>
+    <h4>Findings</h4>
+    {{PT_FINDINGS}}
+  </div>
+-->
+
+<!-- ========================================================================
+  9. RUM
+  ======================================================================== -->
+<h2 id="rum">9. RUM snapshot (Real User Monitoring)</h2>
+{{RUM_SECTION}}
+
+<!-- ========================================================================
+  9a. RUM ROOT CAUSE REPLAY (INP + LCP + CLS)
+  ======================================================================== -->
+<h2 id="rum-replay">9a. RUM Root Cause Replay (field -&gt; lab repro dla INP, LCP, CLS)</h2>
+<p class="meta">Dla każdej slow metryki wykrytej w RUM (INP, LCP, CLS), lab repro przez Chrome DevTools MCP odtwarza problem na konkretnej stronie/elemencie i identyfikuje root cause z performance trace. RUM attribution to hipoteza, trace to dowód.</p>
+
+<h3>9a.1 INP Replay</h3>
+<p class="meta">Slow interakcje z RUM odtworzone w lab. <strong>Uwaga:</strong> kolumna "Actual handler" pokazuje gdzie był prawdziwy handler (z trace), który może być różny od "Target eventu" z RUM (event bubbling / delegation).</p>
+
+{{INP_REPLAY_SECTION}}
+
+<!--
+  Format INP_REPLAY_SECTION:
+  <table>
+    <tr>
+      <th>#</th>
+      <th>Strona / Target eventu</th>
+      <th>Actual handler (z trace)</th>
+      <th>RUM INP p75</th>
+      <th>Lab INP</th>
+      <th>Bottleneck phase</th>
+      <th>Winowajca</th>
+    </tr>
+    ... per interakcja ...
+  </table>
+  Po tabeli, collapsible details per interakcja z rekomendacją.
+-->
+
+<h3>9a.2 LCP Replay</h3>
+<p class="meta">Slow LCP elementy z RUM zweryfikowane w lab przez performance trace + LCP insight. Pokazuje breakdown 4 faz (TTFB / Load Delay / Load Duration / Render Delay) i dominującą winę.</p>
+
+{{LCP_REPLAY_SECTION}}
+
+<!--
+  Format LCP_REPLAY_SECTION:
+  <table>
+    <tr>
+      <th>#</th>
+      <th>URL</th>
+      <th>RUM LCP p75</th>
+      <th>RUM LCP element</th>
+      <th>Lab LCP element</th>
+      <th>Lab LCP</th>
+      <th>Breakdown faz (ms)</th>
+      <th>Dominująca faza</th>
+      <th>Match RUM/Lab</th>
+    </tr>
+    ... per strona ...
+  </table>
+  Po tabeli, per strona collapsible z rekomendacją (preload? fetchpriority? format? render-blocking?).
+-->
+
+<h3>9a.3 CLS Replay</h3>
+<p class="meta">Slow CLS strony z RUM zweryfikowane w lab przez trace + layout-shifts insight. Pokazuje JAKIE elementy się ruszyły i CO je ruszyło (font swap, image load bez wymiarów, late injection, hydration).</p>
+
+{{CLS_REPLAY_SECTION}}
+
+<!--
+  Format CLS_REPLAY_SECTION:
+  <table>
+    <tr>
+      <th>#</th>
+      <th>URL</th>
+      <th>RUM CLS p75</th>
+      <th>Lab CLS</th>
+      <th>Top shifting element</th>
+      <th>Trigger</th>
+      <th>Match RUM/Lab</th>
+    </tr>
+    ... per strona ...
+  </table>
+  Po tabeli, per shift collapsible z rekomendacją (width/height? font-display? min-height container? aspect-ratio?).
+-->
+
+<!-- ========================================================================
+  10. CROSS-LAYER CORRELATIONS
+  ======================================================================== -->
+<h2 id="correlations">10. Korelacje krzyżowe</h2>
+
+<h3>10.1 TTFB curl vs Lab vs RUM</h3>
+<table>
+  <tr><th>Źródło</th><th>Wartość</th><th>Komentarz</th></tr>
+  <tr><td>curl cached (mediana)</td><td>{{CORR_TTFB_CURL_CACHED}} ms</td><td>{{CORR_TTFB_CURL_CACHED_NOTE}}</td></tr>
+  <tr><td>curl uncached (mediana)</td><td>{{CORR_TTFB_CURL_UNCACHED}} ms</td><td>{{CORR_TTFB_CURL_UNCACHED_NOTE}}</td></tr>
+  <tr><td>Lab mobile (Chrome DevTools)</td><td>{{CORR_TTFB_LAB_MOBILE}} ms</td><td>-</td></tr>
+  <tr><td>Lab desktop</td><td>{{CORR_TTFB_LAB_DESKTOP}} ms</td><td>-</td></tr>
+  <tr><td>RUM p75</td><td>{{CORR_TTFB_RUM}} ms</td><td>{{CORR_TTFB_RUM_NOTE}}</td></tr>
+</table>
+<p><strong>Wniosek:</strong> {{CORR_TTFB_CONCLUSION}}</p>
+
+<h3>10.2 Lab vs Field</h3>
+<p>{{CORR_LAB_FIELD_TEXT}}</p>
+
+<h3>10.3 Page type vs page type</h3>
+<p>{{CORR_PAGETYPE_TEXT}}</p>
+
+<!-- ========================================================================
+  11. ACTION PLAN
+  ======================================================================== -->
+<h2 id="plan">11. Plan napraw</h2>
+
+<h3>Quick wins (do zrobienia dziś, max 1h)</h3>
+<div class="quick-wins">
+  {{QUICK_WINS}}
+</div>
+
+<h3>Phase 2 (ten tydzień, do 1 dnia każdy)</h3>
+<div class="phase-2">
+  {{PHASE_2}}
+</div>
+
+<h3>Phase 3 (refaktor, więcej niż 1 dzień)</h3>
+<div class="phase-3">
+  {{PHASE_3}}
+</div>
+
+<!-- ========================================================================
+  12. APPENDIX
+  ======================================================================== -->
+<h2 id="appendix">12. Załączniki</h2>
+
+<h3>12.1 Surowe wyniki curl / dig / openssl</h3>
+<pre><code>{{RAW_NETWORK_OUTPUT}}</code></pre>
+
+<h3>12.2 Lista screenshotów dostarczonych przez użytkownika</h3>
+<ul>{{SCREENSHOT_LIST}}</ul>
+
+<h3>12.3 Logi komend wykonanych w trakcie audytu</h3>
+<pre><code>{{COMMAND_LOG}}</code></pre>
+
+<div class="footer">
+  Wygenerowane z miłością do optymalizacji wydajności WordPressa.
+</div>
+
+</body>
+</html>
