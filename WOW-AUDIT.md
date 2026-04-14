@@ -23,8 +23,9 @@
 8. Never use em dashes or en dashes. Always use regular hyphens (-).
 9. Write all AUTO results as text in your responses - don't rely on memory alone.
 10. Save report placeholder JSON (`tmp/section-*.json`) after each module checkpoint. Phase 10 only generates cross-cutting sections and assembles the final HTML.
-11. **Module 08 execution model:** main agent does NOT run diagnostic tool calls inline. For each (page_type × profile) combo it spawns one sub-agent with a 28-item tool-call checklist (navigate, trace, 5 insights, network, console, lighthouse, 14 snippets, pre-FCP classify, screenshot). Sub-agents run sequentially (shared Chrome tab). Main agent verifies `checklist_items_completed == 28` and exactly 14 snippet keys. Inline-approximating snippets is forbidden. See module 08 "Execution model" for the full spec.
+11. **Module 08 execution model (HARD GATE):** main agent does NOT run diagnostic tool calls inline. For each (page_type × profile) combo it spawns one sub-agent with a 28-item tool-call checklist (navigate, trace, 5 insights, network, console, lighthouse, 14 snippets, pre-FCP classify, screenshot). Sub-agents run sequentially (shared Chrome tab). Main agent verifies `checklist_items_completed == 28` and exactly 14 snippet keys, AND persists this evidence into `tmp/section-frontend.json` under key `sub_agent_runs` (array, one entry per combo). **If `section-frontend.json` is saved without a populated `sub_agent_runs` array, Phase 10 must refuse to assemble the HTML report and instead report to the user "module 08 incomplete - sub-agents not run".** Parsing WPT JSON or static HTML is supplementary - never a substitute for the sub-agent battery. Inline-approximating snippets is forbidden. See module 08 "Execution model" for the full spec.
 12. If a module is long - execute step by step, checkpoint after each step.
+13. Before any module's checkpoint that depends on an MCP tool (Chrome DevTools, CoreDash, New Relic), explicitly verify the tool is available in the session. If it is unavailable, **state this to the user and ask whether to skip or install** - do not silently substitute another data source.
 
 ---
 
@@ -257,7 +258,7 @@ Each item: **What** (one sentence) + **Why** (which metric) + **How** (code/comm
 
 **Most placeholder content is already generated** in `wow-audit/tmp/section-*.json` files (saved progressively during phases 2-9). Phase 10 only generates the cross-cutting sections that need data from multiple modules.
 
-1. Read all `wow-audit/tmp/section-*.json` files. Verify all 10 files exist. If any are missing, generate that section's placeholders now from collected data.
+1. Read all `wow-audit/tmp/section-*.json` files. Verify all 10 files exist. If any are missing, generate that section's placeholders now from collected data. **For `section-frontend.json` specifically, verify it contains a populated `sub_agent_runs` array with one entry per combo, each with `checklist_items_completed: 28` and exactly 14 snippet keys. If missing or incomplete, halt and tell the user "Cannot assemble report - module 08 sub-agents did not run. Re-run module 08 first." Do NOT proceed to assembly.**
 
 2. Generate the remaining cross-cutting placeholders (these need data from multiple modules):
    - **Executive summary:** `TOP_FINDING_1/2/3_TITLE`, `_DESC`, `_EVIDENCE`, `TTFB_CLASS`, `TTFB_VALUE`, `LCP_CLASS`, `LCP_VALUE`, `INP_CLASS`, `INP_VALUE`, `CLS_CLASS`, `CLS_VALUE`

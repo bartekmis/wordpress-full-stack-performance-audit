@@ -4,6 +4,18 @@
 
 ---
 
+## ⛔ HARD GATE - DO NOT skip this module
+
+Module 08 is satisfied **ONLY** by spawning sub-agents that execute all 28 tool-call items per (page_type × profile) combo via Chrome DevTools MCP. WPT JSON parsing and `curl + grep` static HTML inspection are **SUPPLEMENTARY** data sources for the report - they do NOT satisfy module 08.
+
+**If you find yourself thinking "I have enough signal from WPT + RUM, I'll skip the sub-agents" - that thought is a violation of this module. Spawn the sub-agents.**
+
+Evidence requirement: `tmp/section-frontend.json` MUST contain a `sub_agent_runs` array with one entry per combo, each containing `checklist_items_completed: 28` and exactly 14 snippet keys. Phase 10 will refuse to assemble the report without this evidence.
+
+If Chrome DevTools MCP is genuinely unavailable in the session - see "When Chrome DevTools MCP is genuinely unavailable" at the end of this file. Do NOT silently substitute.
+
+---
+
 ## Execution model - MANDATORY: one sub-agent per (page_type × profile)
 
 This module's diagnostic battery is large (navigation, trace, insights, network, console, lighthouse, 14 snippets, screenshot, pre-FCP classification, coverage). Running inline in the main agent has historically led to silent skipping ("roughly approximated", "skipped desktop", "only ran 2 snippets"). **That is no longer acceptable.**
@@ -523,3 +535,32 @@ CWV thresholds: LCP <2.5s, INP/TBT <200ms, CLS <0.1, TTFB <800ms.
 ## Report data
 
 Section 8: page type comparison table + per-page-type section (metrics, LCP element, pre-FCP audit, WPT waterfall audit with per-resource classification, render blocking, top requests, 3P, findings).
+
+When saving `tmp/section-frontend.json`, include a `sub_agent_runs` array. Example:
+
+```json
+{
+  "PAGETYPE_COMPARISON_ROWS": "...",
+  "PAGETYPE_SECTIONS": "...",
+  "sub_agent_runs": [
+    { "page_type": "home", "profile": "mobile", "checklist_items_completed": 28, "snippet_keys_count": 14, "checklist_items_skipped": [] },
+    { "page_type": "news", "profile": "mobile", "checklist_items_completed": 28, "snippet_keys_count": 14, "checklist_items_skipped": [] }
+  ]
+}
+```
+
+Phase 10.3 will verify this array before assembling the HTML. Missing, empty, or `checklist_items_completed < 28` halts assembly.
+
+---
+
+## When Chrome DevTools MCP is genuinely unavailable
+
+If `mcp__chrome-devtools__*` tools are not loaded in the session: **STOP module 08**. Tell the user:
+
+> "Chrome DevTools MCP is not available in this session - module 08 cannot proceed. Install per phase 0.3 instructions and restart the AI client, OR explicitly authorize SKIP for this audit (the frontend section will be marked incomplete and the action plan will rely on WPT + RUM + static HTML only)."
+
+Wait for user response. Acceptable outcomes:
+- User installs MCP and restarts -> re-run module 08 from the top
+- User authorizes SKIP -> save `section-frontend.json` with `sub_agent_runs: []` and a `skip_reason` field (e.g. `"Chrome DevTools MCP not available, user authorized skip on YYYY-MM-DD"`). Phase 10 will then accept the skip and emit a clear "module 08 skipped - frontend section based on WPT + static HTML only" banner in the report.
+
+Do NOT proceed by silently substituting WPT parsing alone. The skip must be explicit and visible in the final report.
