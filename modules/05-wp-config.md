@@ -199,6 +199,9 @@ Save `QM_SLOW_QUERIES_TOP` - list of plugins/components responsible for slow que
 | `SCRIPT_DEBUG = true` | warn | Loads unminified JS/CSS. Disable on prod |
 | `AUTOLOAD_SIZE > 2MB` | bad | Autoload {{mb}}MB - bloated. Clean orphaned options |
 | `REVISIONS_COUNT > posts*5` | warn | {{n}} revisions. Clean old ones (backup first) |
+| `indexes_eval.postmeta_composite_meta_key_value = false` + `postmeta_rows > 500000` | bad | wp_postmeta has {{rows}} rows without composite index on (meta_key, meta_value). Full table scan on every meta query (200-500ms). Add `ALTER TABLE {prefix}postmeta ADD INDEX meta_key_value (meta_key(191), meta_value(50))` in maintenance window or via `pt-online-schema-change`. Verify with EXPLAIN. See Lesson T2/5 |
+| `indexes_eval.postmeta_composite_meta_key_value = false` + `postmeta_rows 50k-500k` | warn | wp_postmeta growing ({{rows}} rows) - plan composite index on (meta_key, meta_value) before it hurts |
+| `indexes_eval.options_autoload_index = false` + `options_rows > 10k` | warn | wp_options without index on autoload column. Add `ALTER TABLE {prefix}options ADD INDEX autoload_idx (autoload)`. WP 6.4+ adds this automatically - check core version |
 | `object-cache.php missing` + Redis configured | warn | Redis configured but drop-in missing. Install Redis Object Cache plugin |
 | `QM_HIT_RATIO < 80%` | warn | Low object cache hit ratio. Check anti-spam/WC |
 | `WP_HOME/SITEURL missing` | info | Hardcode in wp-config for free DB-skip optimization |
@@ -223,4 +226,4 @@ After parsing the active plugin list from `wow-db-check.php` (`PLUGINS_ACTIVE_LI
 
 ## Report data
 
-Save: `WP_MEMORY_LIMIT` + `_STATUS`, `DISABLE_WP_CRON` + `_STATUS`, `WP_POST_REVISIONS` + `_STATUS`, `WP_DEBUG` + `_STATUS`, `SAVE_QUERIES` + `_STATUS`, `AUTOLOAD_SIZE` + `_STATUS`, `REVISIONS_COUNT` + `_STATUS`, `QM_OBJECT_CACHE_RATIO` + `_STATUS`, `WP_FINDINGS`. Appendix: all defines + QM screenshots.
+Save: `WP_MEMORY_LIMIT` + `_STATUS`, `DISABLE_WP_CRON` + `_STATUS`, `WP_POST_REVISIONS` + `_STATUS`, `WP_DEBUG` + `_STATUS`, `SAVE_QUERIES` + `_STATUS`, `AUTOLOAD_SIZE` + `_STATUS`, `REVISIONS_COUNT` + `_STATUS`, `QM_OBJECT_CACHE_RATIO` + `_STATUS`, `POSTMETA_INDEX_STATUS`, `POSTMETA_ROWS`, `OPTIONS_AUTOLOAD_INDEX_STATUS`, `WP_FINDINGS`. Appendix: all defines + QM screenshots + full `indexes` list from wow-audit-check.php.

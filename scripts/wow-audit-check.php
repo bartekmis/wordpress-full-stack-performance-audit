@@ -297,11 +297,50 @@ if ($wp_loaded) {
     // Comments
     $data['wordpress']['comments'] = $wpdb->get_results("SELECT comment_approved, COUNT(*) AS n FROM {$wpdb->comments} GROUP BY comment_approved", ARRAY_A);
 
-    // Tables
-    $data['wordpress']['tables'] = $wpdb->get_results($wpdb->prepare("SELECT TABLE_NAME AS name, ROUND(((data_length+index_length)/1048576),2) AS size_mb, table_rows, ENGINE FROM information_schema.tables WHERE table_schema=%s ORDER BY (data_length+index_length) DESC", DB_NAME), ARRAY_A);
+    // Tables - size from information_schema, row_count via COUNT(*) for accuracy (InnoDB table_rows is an estimate)
+    $data['wordpress']['tables'] = $wpdb->get_results($wpdb->prepare("SELECT TABLE_NAME AS name, ROUND(((data_length+index_length)/1048576),2) AS size_mb, ENGINE FROM information_schema.tables WHERE table_schema=%s ORDER BY (data_length+index_length) DESC", DB_NAME), ARRAY_A);
+    foreach ($data['wordpress']['tables'] as &$_t) {
+        $_t['row_count'] = (int)$wpdb->get_var("SELECT COUNT(*) FROM `".str_replace('`','',$_t['name'])."`");
+    }
+    unset($_t);
 
     // Non-InnoDB
     $data['wordpress']['non_innodb'] = $wpdb->get_results($wpdb->prepare("SELECT TABLE_NAME AS name, ENGINE FROM information_schema.tables WHERE table_schema=%s AND ENGINE!='InnoDB' AND ENGINE IS NOT NULL", DB_NAME), ARRAY_A);
+
+    // Indexes on key tables (postmeta, options, wc_orders_meta if HPOS)
+    $idx_tables = [$wpdb->postmeta, $wpdb->options];
+    if (!empty($data['wordpress']['woocommerce']['hpos'])) {
+        $idx_tables[] = $wpdb->prefix.'wc_orders_meta';
+        $idx_tables[] = $wpdb->prefix.'wc_product_meta_lookup';
+    }
+    $idx_placeholders = implode(',', array_fill(0, count($idx_tables), '%s'));
+    $idx_sql = "SELECT TABLE_NAME AS t, INDEX_NAME AS idx, COLUMN_NAME AS col, SEQ_IN_INDEX AS seq, NON_UNIQUE AS nu FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=%s AND TABLE_NAME IN ($idx_placeholders) ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX";
+    $data['wordpress']['indexes'] = $wpdb->get_results($wpdb->prepare($idx_sql, array_merge([DB_NAME], $idx_tables)), ARRAY_A);
+
+    // Index evaluation - postmeta composite, options autoload
+    $idx_by_table = [];
+    foreach ((array)$data['wordpress']['indexes'] as $r) {
+        $idx_by_table[$r['t']][$r['idx']][] = $r['col'];
+    }
+    // Real row counts via COUNT(*) - information_schema.tables.table_rows is unreliable for InnoDB
+    $postmeta_rows = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->postmeta}");
+    $options_rows = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->options}");
+    $has_postmeta_composite = false;
+    foreach ($idx_by_table[$wpdb->postmeta] ?? [] as $cols) {
+        if (count($cols) >= 2 && $cols[0] === 'meta_key' && in_array('meta_value', $cols, true)) { $has_postmeta_composite = true; break; }
+    }
+    $has_options_autoload = false;
+    foreach ($idx_by_table[$wpdb->options] ?? [] as $cols) {
+        if (in_array('autoload', $cols, true)) { $has_options_autoload = true; break; }
+    }
+    $data['wordpress']['indexes_eval'] = [
+        'postmeta_rows' => $postmeta_rows,
+        'postmeta_composite_meta_key_value' => $has_postmeta_composite,
+        'postmeta_severity' => $has_postmeta_composite ? 'ok' : ($postmeta_rows > 500000 ? 'bad' : ($postmeta_rows > 50000 ? 'warn' : 'info')),
+        'options_rows' => $options_rows,
+        'options_autoload_index' => $has_options_autoload,
+        'options_severity' => $has_options_autoload ? 'ok' : ($options_rows > 10000 ? 'warn' : 'info'),
+    ];
 
     // Transients
     $tr = $wpdb->get_row("SELECT SUM(CASE WHEN option_name LIKE '\\_transient\\_%' AND option_name NOT LIKE '\\_transient\\_timeout\\_%' THEN 1 ELSE 0 END) AS total, SUM(CASE WHEN option_name LIKE '\\_transient\\_timeout\\_%' AND CAST(option_value AS UNSIGNED)<UNIX_TIMESTAMP() THEN 1 ELSE 0 END) AS expired FROM {$wpdb->options}");
@@ -518,6 +557,36 @@ details{margin:6px 0}summary{cursor:pointer;font-weight:600}
 <table><tr><th>table</th><th>MB</th><th>rows</th><th>engine</th></tr>
 <?php foreach($data['wordpress']['tables'] as $r): ?>
 <tr><td><code><?=htmlspecialchars($r['name'])?></code></td><td><?=$r['size_mb']?></td><td><?=number_format((int)($r['row_count']??0))?></td><td class="<?=($r['ENGINE']??'')==='InnoDB'?'':'b'?>"><?=htmlspecialchars($r['ENGINE']??'')?></td></tr>
+<?php endforeach; ?></table></details>
+
+<h3>Indexes on key tables</h3>
+<?php $ie = $data['wordpress']['indexes_eval']; ?>
+<table>
+<?php
+$sev_class = function($sev, $present) {
+    if ($present) return 'g';
+    return ['bad'=>'b','warn'=>'y','info'=>'m','ok'=>'g'][$sev] ?? 'm';
+};
+?>
+<tr><td><code><?=htmlspecialchars($wpdb->postmeta)?></code> composite (meta_key, meta_value)</td>
+    <td class="<?=$sev_class($ie['postmeta_severity'], $ie['postmeta_composite_meta_key_value'])?>">
+      <?=$ie['postmeta_composite_meta_key_value']?'present':'missing'?>
+      (<?=number_format($ie['postmeta_rows'])?> rows<?=!$ie['postmeta_composite_meta_key_value'] && $ie['postmeta_rows']<50000?' - not critical at this size':''?>)
+    </td></tr>
+<tr><td><code><?=htmlspecialchars($wpdb->options)?></code> index on autoload</td>
+    <td class="<?=$sev_class($ie['options_severity'], $ie['options_autoload_index'])?>">
+      <?=$ie['options_autoload_index']?'present':'missing'?>
+      (<?=number_format($ie['options_rows'])?> rows)
+    </td></tr>
+</table>
+<?php if (!$ie['postmeta_composite_meta_key_value'] && $ie['postmeta_rows']>50000): ?>
+<pre style="background:#f5f5f5;padding:8px;font-size:11px">ALTER TABLE <?=htmlspecialchars($wpdb->postmeta)?> ADD INDEX meta_key_value (meta_key(191), meta_value(50));</pre>
+<?php endif; ?>
+
+<details><summary>All indexes on key tables (<?=count($data['wordpress']['indexes'])?>)</summary>
+<table><tr><th>table</th><th>index</th><th>column</th><th>seq</th><th>unique</th></tr>
+<?php foreach($data['wordpress']['indexes'] as $r): ?>
+<tr><td><code><?=htmlspecialchars($r['t'])?></code></td><td><code><?=htmlspecialchars($r['idx'])?></code></td><td><?=htmlspecialchars($r['col'])?></td><td><?=$r['seq']?></td><td><?=$r['nu']=='0'?'yes':'no'?></td></tr>
 <?php endforeach; ?></table></details>
 
 <h2>8. wp-config Constants</h2>
