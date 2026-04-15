@@ -109,7 +109,7 @@ curl -sL "{{AUDIT_CHECK_URL}}" | sed -n '/WOW_AUDIT_JSON_START/,/WOW_AUDIT_JSON_
 ```
 
 JSON sections and key variables to save:
-- `php.*`: `PHP_VERSION`, `PHP_SAPI`, `PHP_MEMORY_LIMIT`, `EXTENSIONS_LOADED` (redis/memcached/opcache/imagick/gd)
+- `php.*`: `PHP_VERSION`, `PHP_SAPI`, `PHP_MEMORY_LIMIT`, `EXTENSIONS_LOADED` (redis/memcached/opcache/imagick/gd), `REALPATH_CACHE_CURRENT_BYTES`, `REALPATH_CACHE_ENTRIES` (live values from `realpath_cache_size()` / `realpath_cache_get()` - see "Realpath cache / SAPI fingerprint" below)
 - `opcache.*`: `OPCACHE_ENABLED`, `OPCACHE_HIT_RATE`, `OPCACHE_MEMORY_USED_MB`, `OPCACHE_MEMORY_WASTED_PCT`, `OPCACHE_OOM_RESTARTS`, `OPCACHE_KEYS_USED_PCT`, `OPCACHE_CACHED_SCRIPTS`, `OPCACHE_JIT`
 - `benchmark.*`: `BENCH_MD5_MS`, `BENCH_MD5_RATING`, `BENCH_IO_MS`, `BENCH_IO_RATING`
 - `fpm.*`: `FPM_DETECTED`, `FPM_PM`, `FPM_MAX_CHILDREN`, `FPM_MAX_REQUESTS`, `FPM_MAX_CHILDREN_REACHED`
@@ -120,6 +120,31 @@ JSON sections and key variables to save:
 - `constants.*`: `WP_DEBUG`, `SAVE_QUERIES`, `DISABLE_WP_CRON`, `WP_POST_REVISIONS`, `WP_MEMORY_LIMIT`, `SCRIPT_DEBUG`
 
 Note: `wordpress.*` data feeds module 05 - no separate script needed. On managed hosting `system.*`/`fpm.*` may be empty.
+
+#### 8.2a Realpath cache / SAPI fingerprint (MANDATORY read)
+
+After fetching `wow-audit-check.php`, inspect the "Realpath cache (SAPI fingerprint)" subsection under section 1. It contains the LIVE output of `realpath_cache_size()` and `realpath_cache_get()` for the PHP process that served the request.
+
+**What it tells you:** PHP caches resolved absolute file paths between `include`/`require` calls to avoid expensive stat syscalls. On a well-configured host (typically PHP-FPM with sensible `pm.max_requests`), workers stay alive across hundreds/thousands of requests and the realpath cache accumulates thousands of entries. A WordPress homepage touches 500-2000+ file paths, so a healthy worker that has served a few requests should show **> 5000 bytes, tens of entries**.
+
+**When this check is decisive:**
+1. TTFB uncached is deterministically high (e.g. 2-4 s) but variance is small (± 10-15%).
+2. Code Profiler Pro shows a large plugin (WPForms, WooCommerce, Spectra, Elementor) dominating wallclock time in a way that seems disproportionate to what that plugin does elsewhere.
+3. **The same WordPress install runs significantly faster on a different server.**
+
+In these conditions, if `realpath_cache_size()` returns **< 1500 bytes**, and especially if the SAPI is `litespeed`/`lsapi`, you have found the bottleneck. Every `include` call is re-statting the full path because the worker was recycled between requests. At 1000+ file loads per WordPress request and CloudLinux LVE adding 100-300 μs per syscall, this produces 1-3 s of unavoidable server-side overhead that no WordPress-level optimization can remove.
+
+**Verification protocol (ASK user):**
+> "Odśwież `{{AUDIT_CHECK_URL}}` 3-5 razy z rzędu i podaj wartość `realpath_cache_size()` (live bytes) za każdym razem."
+
+Interpretation of results:
+- All values near zero (< 1500 B) → worker recycles per request. **Server misconfig, not a WordPress problem.** Recommend: ask hosting to raise `LSAPI_CHILDREN` / `LSAPI_MAX_REQS` / LSWS `Max Idle Time`, or switch the account to PHP-FPM, or migrate off this host. Document in report as the primary root cause.
+- Values grow across refreshes (e.g. 0 → 4000 → 9000 → 14000) → worker is persistent; the first request was just cold. Not the bottleneck, move on.
+- Some refreshes cold, others warm (inconsistent) → multiple workers / load-balanced, cache is per-worker. Common on FPM with high `pm.max_children`. Usually fine.
+
+Save as `REALPATH_CACHE_LIVE_BYTES` (array of values from multiple refreshes) and `SAPI_FINGERPRINT_VERDICT` (healthy/suspected-reset/confirmed-reset).
+
+**Why this matters for the whole audit:** without this check you can spend hours optimizing WordPress-level things (disabling plugins, switching form engines, tuning Redis) to claw back hundreds of milliseconds, when the real 2-second cost is server-side and unfixable from within WordPress. Always run this check before recommending a plugin swap or a code-level refactor as a response to slow TTFB.
 
 #### 8.3 Delete the file
 
@@ -204,6 +229,8 @@ If the student does not have access - skip, write "not verified" in the report.
 | `OPCACHE_SCRIPTS near max` | warn | Near max_accelerated_files limit. Increase |
 | `OPCACHE_OOM_RESTARTS > 0` | bad | OPcache OOM {{n}}x. Increase memory_consumption |
 | `OPCACHE_WASTED > 10%` | warn | OPcache fragmentation. Restart FPM periodically |
+| `REALPATH_CACHE_LIVE_BYTES < 1500` across 3+ refreshes | bad | Realpath cache not persisting between requests - worker recycles too often. Each include() does a fresh stat syscall. On WP with 1000+ file loads + CloudLinux LVE this adds 1-3 s of TTFB that no WP-level fix removes. Ask hosting to raise `LSAPI_CHILDREN`/`LSAPI_MAX_REQS` / LSWS `Max Idle Time`, switch to PHP-FPM, or migrate. **Server-level root cause - do NOT recommend plugin swaps / Redis / cache as the primary fix when this is triggered.** |
+| `REALPATH_CACHE_LIVE_BYTES 1500-5000` inconsistent | warn | Realpath cache partially warm. Multiple workers or aggressive recycling. Investigate hosting worker config. |
 | `FPM_MAX_CHILDREN_REACHED > 0` | bad | FPM worker limit hit {{n}}x. Increase max_children or optimize backend |
 | `FPM_REC = under-provisioned` | bad | FPM {{current}} < recommended {{rec}}. Increase max_children |
 | `FPM_REC = over-provisioned` | warn | FPM {{current}} > recommended. Risk of OOM |

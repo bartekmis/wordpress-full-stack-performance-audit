@@ -54,6 +54,8 @@ If you don't have all three, **do not give the recommendation**. Say instead "da
 
 If the backend needs 2 seconds to generate HTML, no lazy-loading, fetchpriority, critical CSS, or CDN will fix that. **First you fix the backend, then the frontend.**
 
+**Critical checkpoint before ANY plugin-swap or code refactor recommendation:** if TTFB uncached is deterministically high (2+ s, narrow variance) and a profiler (Code Profiler Pro, New Relic) shows a known plugin dominating time disproportionately, verify **`realpath_cache_size()` live bytes** via `wow-audit-check.php` (module 04, step 8.2a). If near-zero across multiple refreshes, the bottleneck is **worker recycling / SAPI misconfiguration**, not WordPress. At 1000+ file includes per WordPress request, a cold realpath cache + CloudLinux LVE syscall overhead can add 1-3 s that looks exactly like "plugin X is slow" in a profiler. Fix the server (hosting support, SAPI change, or migrate) before touching the application. See real case: grupastop.pl where WPForms looked like the villain at 1.9 s but the same install ran at ~400 ms on a PHP-FPM host without CloudLinux - the fingerprint was `realpath_cache_size() = 0` on LSAPI vs `9947` on FPM.
+
 **Backend fix hierarchy (the order is sacred):**
 1. **PHP version + OPcache + FPM** - free configuration wins, enable immediately
 2. **wp-config hygiene** - debug OFF, SAVE_QUERIES OFF, autoload < 2MB, DISABLE_WP_CRON + system cron

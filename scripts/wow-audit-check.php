@@ -48,7 +48,16 @@ $data['php'] = [
     'max_input_vars'       => ini_get('max_input_vars'),
     'upload_max_filesize'  => ini_get('upload_max_filesize'),
     'post_max_size'        => ini_get('post_max_size'),
-    'realpath_cache_size'  => ini_get('realpath_cache_size'),
+    'realpath_cache_size_config'  => ini_get('realpath_cache_size'),
+    'realpath_cache_ttl_config'   => ini_get('realpath_cache_ttl'),
+    // LIVE values: how much the current PHP process actually has cached.
+    // On healthy FPM workers this grows across requests; on LSAPI with per-request
+    // worker reset it stays near zero. A WordPress request touches 500-2000+ file
+    // paths, so a healthy cache typically sits at 5000-50000 bytes after warmup.
+    // Near-zero here on a loaded WP install is the canonical "worker recycles too
+    // aggressively / LSAPI cold-starts every request" fingerprint.
+    'realpath_cache_current_bytes' => function_exists('realpath_cache_size') ? realpath_cache_size() : null,
+    'realpath_cache_entries'       => function_exists('realpath_cache_get') ? count(realpath_cache_get()) : null,
     'session_handler'      => ini_get('session.save_handler'),
     'display_errors'       => ini_get('display_errors'),
     'disabled_functions'   => ini_get('disable_functions'),
@@ -90,7 +99,39 @@ if (function_exists('opcache_get_status')) {
             'oom_restarts'        => $st['oom_restarts'] ?? 0,
             'keys_used_pct'       => ($st['max_cached_keys'] ?? 0) > 0
                 ? round(($st['num_cached_keys'] ?? 0) / $st['max_cached_keys'] * 100, 1) : null,
+            'recent_scripts'      => [],
         ];
+
+        $full = @opcache_get_status(true);
+        if ($full && !empty($full['scripts']) && is_array($full['scripts'])) {
+            $scripts = $full['scripts'];
+            uasort($scripts, function ($a, $b) {
+                return ($b['last_used_timestamp'] ?? 0) <=> ($a['last_used_timestamp'] ?? 0);
+            });
+            $suspicious_patterns = [
+                '#/cache/#i', '#/tmp/#i', '#/wp-content/uploads/#i',
+                '#/wp-content/cache/#i', '#/cache-enabler/#i',
+                '#/\.cache/#i', '#/runtime/#i',
+                '#[a-f0-9]{16,}#',
+                '#eval\(\)\'d code#i', '#\brun-time-created#i',
+                '#\.tmp\.php$#i',
+            ];
+            $top = array_slice($scripts, 0, 20, true);
+            foreach ($top as $path => $info) {
+                $susp = [];
+                foreach ($suspicious_patterns as $p) {
+                    if (preg_match($p, $path)) { $susp[] = trim($p, '#i'); }
+                }
+                $data['opcache']['recent_scripts'][] = [
+                    'path'          => $path,
+                    'hits'          => $info['hits'] ?? 0,
+                    'memory_kb'     => round(($info['memory_consumption'] ?? 0) / 1024, 1),
+                    'last_used'     => $info['last_used_timestamp'] ?? 0,
+                    'age_seconds'   => $info['last_used_timestamp'] ? (time() - $info['last_used_timestamp']) : null,
+                    'suspicious'    => $susp,
+                ];
+            }
+        }
     }
 }
 
@@ -328,6 +369,45 @@ details{margin:6px 0}summary{cursor:pointer;font-weight:600}
 <tr><td>Extensions</td><td><?php foreach($data['php']['extensions'] as $e=>$v) echo '<code>'.$e.'</code>:'.($v?'<span class="g">ON</span>':'<span class="b">off</span>').' '; ?></td></tr>
 </table>
 
+<h3>Realpath cache (SAPI fingerprint)</h3>
+<?php
+  $rp_bytes = $data['php']['realpath_cache_current_bytes'];
+  $rp_entries = $data['php']['realpath_cache_entries'];
+  $sapi_lower = strtolower((string)$data['php']['sapi']);
+  $is_lsapi = strpos($sapi_lower,'litespeed')!==false || strpos($sapi_lower,'lsapi')!==false;
+  // Heuristic: a request that reached this script already loaded dozens of core PHP
+  // files; a non-WP plain probe will sit around 500-3000 bytes. If a diagnostic run
+  // inside a loaded WordPress shows < 2000 bytes, realpath cache is effectively
+  // not persisting between requests on this worker.
+  $rp_flag_class = '';
+  $rp_flag_msg = '';
+  if ($rp_bytes !== null) {
+    if ($rp_bytes < 1500) {
+      $rp_flag_class = 'b';
+      $rp_flag_msg = 'very low - worker may be recycling per request (common on misconfigured LSAPI or low pm.max_requests on FPM). Every include() re-stats the full path. See diagnosis note below.';
+    } elseif ($rp_bytes < 5000) {
+      $rp_flag_class = 'y';
+      $rp_flag_msg = 'low - cache is warming but may be resetting too often; refresh this page 3-5x and check whether the number grows.';
+    } else {
+      $rp_flag_class = 'g';
+      $rp_flag_msg = 'healthy - cache persists across requests.';
+    }
+  }
+?>
+<table>
+<tr><td><code>realpath_cache_size</code> (config)</td><td><?=htmlspecialchars((string)$data['php']['realpath_cache_size_config'])?></td></tr>
+<tr><td><code>realpath_cache_ttl</code> (config)</td><td><?=htmlspecialchars((string)$data['php']['realpath_cache_ttl_config'])?> s</td></tr>
+<tr><td><code>realpath_cache_size()</code> <strong>live bytes</strong></td><td class="<?=$rp_flag_class?>"><?=$rp_bytes===null?'n/a':number_format($rp_bytes).' B'?></td></tr>
+<tr><td><code>realpath_cache_get()</code> entries</td><td><?=$rp_entries===null?'n/a':number_format($rp_entries)?></td></tr>
+<?php if ($rp_flag_msg): ?>
+<tr><td>Diagnosis</td><td class="<?=$rp_flag_class?>"><?=htmlspecialchars($rp_flag_msg)?></td></tr>
+<?php endif; ?>
+<?php if ($is_lsapi && $rp_bytes !== null && $rp_bytes < 1500): ?>
+<tr><td>LSAPI note</td><td class="b">SAPI is LiteSpeed (LSAPI) and realpath cache is near-empty. Strong sign of worker recycling between requests. On a 1000+ file WordPress request this produces 1-3 s of extra syscall overhead (amplified further by CloudLinux LVE if present). Ask hosting to raise <code>LSAPI_CHILDREN</code> / <code>LSAPI_MAX_REQS</code> / LSWS <code>Max Idle Time</code>, or switch account to PHP-FPM.</td></tr>
+<?php endif; ?>
+</table>
+<p class="m">How to interpret: refresh this page 3-5x in quick succession. If "live bytes" stays under ~1500 across reloads, the PHP worker is not persisting realpath cache - every file include pays a fresh stat() syscall. On WordPress with 1000+ files loaded per request this can add 1-3 s of TTFB that no WordPress-level optimization can remove. This is a <strong>server / SAPI</strong> problem, not a WordPress problem.</p>
+
 <h2>2. OPcache</h2>
 <?php if(!$data['opcache']['available']): ?><p class="b">Not available</p><?php else: ?>
 <table>
@@ -339,6 +419,27 @@ details{margin:6px 0}summary{cursor:pointer;font-weight:600}
 <tr><td>OOM restarts</td><td class="<?=($data['opcache']['oom_restarts']??0)>0?'b':'g'?>"><?=$data['opcache']['oom_restarts']?></td></tr>
 <tr><td>JIT</td><td><?=htmlspecialchars($data['opcache']['config_jit']??'off')?></td></tr>
 </table>
+
+<?php if(!empty($data['opcache']['recent_scripts'])): ?>
+<h3>Top 20 most recently compiled scripts</h3>
+<p class="m">Flagged paths (cache/tmp/uploads/hash-like names) can indicate plugins generating PHP on the fly - each unique path = 1 permanent miss.</p>
+<table>
+<tr><th>Path</th><th>Hits</th><th>Size</th><th>Last used</th><th>Flag</th></tr>
+<?php foreach($data['opcache']['recent_scripts'] as $r):
+    $age = $r['age_seconds'];
+    $age_str = $age===null ? '?' : ($age < 60 ? $age.'s' : ($age < 3600 ? round($age/60).'m' : round($age/3600,1).'h')).' ago';
+    $flag = !empty($r['suspicious']);
+?>
+<tr>
+  <td><code style="font-size:11px"><?=htmlspecialchars($r['path'])?></code></td>
+  <td><?=number_format($r['hits'])?></td>
+  <td><?=$r['memory_kb']?>KB</td>
+  <td><?=$age_str?></td>
+  <td class="<?=$flag?'b':''?>"><?=$flag?htmlspecialchars(implode(', ',$r['suspicious'])):'ok'?></td>
+</tr>
+<?php endforeach; ?>
+</table>
+<?php endif; ?>
 <?php endif; ?>
 
 <h2>3. CPU Benchmark (<?=number_format($iterations)?> iter)</h2>
