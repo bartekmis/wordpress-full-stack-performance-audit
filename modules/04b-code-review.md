@@ -1,6 +1,6 @@
 # Module 04b - Code Review (custom WordPress code)
 
-> **Goal:** Scan theme code, mu-plugins, and custom plugins for the 10 most dangerous anti-patterns from the `wordpress-performance-best-practices` skill (Bartlomiej Mis, https://github.com/bartekmis/wordpress-performance-best-practises). Identify specific files and lines with issues, map them to rule names, and add them to the action plan as root-cause fixes (following the 5/5a tuning fork principle).
+> **Goal:** Scan theme code, mu-plugins, and custom plugins for the 10 most dangerous anti-patterns from the `wordpress-performance-best-practices` skill (Bartlomiej Mis, https://github.com/bartekmis/wordpress-performance-best-practices). Identify specific files and lines with issues, map them to rule names, and add them to the action plan as root-cause fixes (following the 5/5a tuning fork principle).
 
 ## Prerequisite
 
@@ -237,7 +237,7 @@ From each rule extract:
 - 1-2 sentences of **justification** (from the "## ..." section)
 - **Correct code example** (section "Correct (...)") - copy 5-15 lines of the canonical solution
 
-If the skill **is not available**, write a placeholder in the report: "Full description and fix patterns: https://github.com/bartekmis/wordpress-performance-best-practises/blob/main/rules/{rule-name}.md".
+If the skill **is not available**, write a placeholder in the report: "Full description and fix patterns: https://github.com/bartekmis/wordpress-performance-best-practices/blob/main/rules/{rule-name}.md".
 
 ## Findings
 

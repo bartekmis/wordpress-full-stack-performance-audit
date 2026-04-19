@@ -68,8 +68,8 @@ claude mcp add --scope local --transport http coredash https://app.coredash.app/
 # CWV Superpowers:
 /plugin marketplace add corewebvitals/cwv-superpowers
 /plugin install cwv-superpowers@cwv-superpower
-# wordpress-performance-best-practices:
-/plugin marketplace add bartekmis/wordpress-performance-best-practises
+# wordpress-performance-best-practices (skill, installed via skills.sh):
+npx skills add https://github.com/bartekmis/wordpress-performance-best-practices --skill wordpress-performance-best-practices
 # New Relic (optional):
 claude mcp add --scope local newrelic -- npx @newrelic/mcp-server@latest \
   -e NEW_RELIC_API_KEY=NRAK-...
